@@ -24,3 +24,42 @@ ARCHIVO_MODELO = 'modelos/texto_predictivo_modelo.keras'
 ARCHIVO_TOKENIZADOR = 'modelos/texto_predictivo_tokenizador.pkl'
 ARCHIVO_DATOS = 'csv/texto_predictivo_datos.csv'
 
+tokenizar = None
+modelo = None
+max_sequence_length = 20  # Longitud máxima de las secuencias de entrada
+
+def limpiar_texto(texto):
+    texto = texto.lower()
+    texto = re.sub(r'[^\w\s]', '', texto)
+    return texto
+
+def cargar_datos(ruta_csv):
+    if not os.path.exists(ruta_csv):
+        print(f"El archivo {ruta_csv} no existe.")
+        return ['hola cómo estás', 'buenos días', 'buenas noches', 'estoy bien gracias', 'buen día para ti también', 'que descanses']
+    
+    df = pd.read_csv(ruta_csv)
+    data = df['frases'].dropna().drop_duplicates().tolist()
+    return [limpiar_texto(frase) for frase in data]
+
+def preparar_datos(frases):
+    tokenizer = Tokenizer()
+    tokenizer.fit_on_texts(frases)
+    total_words = len(tokenizer.word_index) + 1
+
+    input_sequences = []
+    for line in frases:
+        token_list = tokenizer.texts_to_sequences([line])[0] # Convierte ["hola", "como"] en [4, 12]
+        # Creamos n-gramas: "hola como" -> predice "estas"
+        for i in range(1, len(token_list)):
+            n_gram_sequence = token_list[:i+1]
+            input_sequences.append(n_gram_sequence)
+
+    max_len = max([len(x) for x in input_sequences])
+    input_sequences = pad_sequences(input_sequences, maxlen=max_len, padding='pre')
+
+    xs, labels = input_sequences[:,:-1], input_sequences[:,-1]
+    ys = to_categorical(labels, num_classes=total_words)
+
+    return xs, ys, max_len, total_words, tokenizer
+

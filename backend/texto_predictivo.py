@@ -24,7 +24,7 @@ ARCHIVO_MODELO = 'modelos/texto_predictivo_modelo.keras'
 ARCHIVO_TOKENIZADOR = 'modelos/texto_predictivo_tokenizador.pkl'
 ARCHIVO_DATOS = 'csv/texto_predictivo_datos.csv'
 
-tokenizar = None
+tokenizer = None
 modelo = None
 max_sequence_length = 20  # Longitud máxima de las secuencias de entrada
 
@@ -97,7 +97,7 @@ def predecir_texto(semilla, num_palabras=10):
 
 
 def predecir_proxima_palabra(texto):
-    token_list = tokenizar.texts_to_sequences([texto])[0]
+    token_list = tokenizer.texts_to_sequences([texto])[0]
     token_list = pad_sequences([token_list], maxlen=max_sequence_length-1, padding='pre')
     
     prediccion = modelo.predict(token_list, verbose=0)[0]
@@ -106,4 +106,32 @@ def predecir_proxima_palabra(texto):
     if prediccion[indice_ganador] < 0.1:
         return None
 
-    return tokenizar.index_word[indice_ganador]
+    return tokenizer.index_word[indice_ganador]
+
+
+def inicializar():
+    global modelo, tokenizer, max_sequence_length
+
+    if os.path.exists(ARCHIVO_MODELO) and os.path.exists(ARCHIVO_TOKENIZADOR):
+        modelo = load_model(ARCHIVO_MODELO)
+        with open(ARCHIVO_TOKENIZADOR, 'rb') as handle:
+            datos = pickle.load(handle)
+            tokenizer = datos['tokenizer']
+            max_sequence_length = datos['max_len']
+
+    else:
+        frases = cargar_datos(ARCHIVO_DATOS)
+        tokenizer, total_words, max_sequence_length, xs, ys = preparar_datos(frases)
+
+        modelo = crear_modelo(total_words, 128, max_sequence_length-1)
+
+        early_stop = EarlyStopping(monitor='loss', patience=5, restore_best_weights=True)
+        modelo.fit(xs, ys, epochs=50, verbose=1, shuffle=True, callbacks=[early_stop])
+
+        modelo.save(ARCHIVO_MODELO)
+
+        paquete = {'tokenizer': tokenizer, 'max_len': max_sequence_length}
+        with open(ARCHIVO_TOKENIZADOR, 'wb') as handle:
+            pickle.dump(paquete, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+inicializar()

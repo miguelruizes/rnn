@@ -5,9 +5,25 @@ import matplotlib.pyplot as plt
 import yfinance as yf
 from io import BytesIO
 
-def obtener_datos_empresas(empresa, periodo):
-    datos = yf.download(empresa, period = periodo)
-    return datos
+def obtener_datos_empresas(empresa, periodo='2y'):
+    df = yf.download(empresa, period=periodo, progress=False, auto_adjust=True)
+    
+    if df.empty:
+        raise ValueError(f"No se encontraron datos para la empresa: {empresa}")
+    
+    if isinstance(df.index, pd.DatetimeIndex):
+        try:
+            serie = df.xs('Close', axis=1, level=0)
+            if serie.empty:
+                serie = df.xs(empresa, axis=1, level=1)['Close']
+            return serie
+        except:
+            return df.iloc[:, 0]
+        
+    if 'Close' in df.columns:
+        return df['Close']
+    
+    return df.iloc[:, 0]
 
 def generar_grafico_empresas(empresa, periodo):
     datos = obtener_datos_empresas(empresa, periodo)
